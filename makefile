@@ -6,6 +6,8 @@ CFLAGS = -Wall -Wextra -std=c11
 
 SERVER = server
 CLIENT = client
+SERVER_LINK = echos
+CLIENT_LINK = echo
 # Source files
 SERVER_SRC = server.c
 CLIENT_SRC = client.c
@@ -15,7 +17,7 @@ SERVER_OBJ = $(SERVER_SRC:.c=.o)
 CLIENT_OBJ = $(CLIENT_SRC:.c=.o)
 
 # Default target
-all: $(SERVER) $(CLIENT)
+all: $(SERVER) $(CLIENT) $(SERVER_LINK) $(CLIENT_LINK)
 
 # Rule to build the server executable
 $(SERVER): $(SERVER_OBJ)
@@ -40,11 +42,18 @@ $(CLIENT_OBJ): $(CLIENT_SRC)
 	@echo "Compiling client source file $(CLIENT_SRC)..."
 	$(CC) $(CFLAGS) -c $(CLIENT_SRC) -o $(CLIENT_OBJ)
 	@echo "Compiled $(CLIENT_SRC) to $(CLIENT_OBJ)."
+	
+# Rule to create symbolic links
+$(SERVER_LINK): $(SERVER)
+	ln -sf $(SERVER) $(SERVER_LINK)
 
-# Clean rule to remove built files
+$(CLIENT_LINK): $(CLIENT)
+	ln -sf $(CLIENT) $(CLIENT_LINK)
+
+# Clean rule to remove built files:
 clean:
 	@echo "Cleaning up..."
-	rm -f $(SERVER) $(CLIENT) $(SERVER_OBJ) $(CLIENT_OBJ)
+	rm -f $(SERVER) $(CLIENT) $(SERVER_OBJ) $(CLIENT_OBJ) $(SERVER_LINK) $(CLIENT_LINK)
 	@echo "Clean complete."
 
 # Phony targets
