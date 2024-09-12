@@ -74,10 +74,6 @@ void read_write(int socket_fd) {
 }
 
 int main(int argc, char *argv[]) {
-    if (argc != 3) {
-        printf("Check Number of Input Arguments");
-        exit(EXIT_FAILURE);
-    }
 
     const char *ip_address = argv[1];
     int port = atoi(argv[2]);
