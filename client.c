@@ -1,4 +1,3 @@
-// client.c
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -7,55 +6,109 @@
 
 #define MAX 1024
 
-int main(int argc, char *argv[]) {
-    if (argc != 3) {
-        fprintf(stderr, "Usage: %s <IPAdr> <Port>\n", argv[0]);
-        exit(EXIT_FAILURE);
-    }
+// Function to read a line from the socket using recv
+ssize_t readline(int socket_fd, char *buffer, size_t maxlength) {
+    ssize_t read_inp = 0;
+    char c;
+    ssize_t n;
 
-    const char *ip_addr = argv[1];
-    int port = atoi(argv[2]);
-    int sockfd;
-    struct sockaddr_in servaddr;
+    while (read_inp < maxlength - 1) {
+        n = recv(socket_fd, &c, 1, 0);
+        printf("Byte received from server: %zd\n", n);
+        if (n <= 0) {
+            perror("connection closed here");
+            return -1;
+        }
+        
+        buffer[read_inp] = c;
+        read_inp++;
+        if (c == '\n') {
+            break;
+        }
+    }
+    buffer[read_inp] = '\0';
+    return read_inp;
+}
+
+// Function to write n bytes to the socket using send
+ssize_t writen(int socket_fd, const char *buffer, ssize_t n) {
+    ssize_t write_out = 0;
+    ssize_t bytes_written;
+
+    while (write_out < n) {
+        bytes_written = send(socket_fd, buffer + write_out, n - write_out, 0);
+        if (bytes_written < 0) {
+            perror("Send error");
+            return -1;  // error encountered here
+        }
+        printf("Total no of Bytes written: %zd\n", bytes_written);
+        write_out += bytes_written;
+    }
+    return write_out;
+}
+
+// Function to handle read and write operation with server
+void read_write(int socket_fd) {
     char buffer[MAX];
     ssize_t n;
 
-    sockfd = socket(AF_INET, SOCK_STREAM, 0);
-    if (sockfd < 0) {
+    printf("Please Enter String:");
+    while (fgets(buffer, sizeof(buffer), stdin) != NULL) {
+        if (writen(socket_fd, buffer, strlen(buffer)) < 0) {
+            perror("Write error");
+            break;
+        }
+        
+        n = readline(socket_fd, buffer, sizeof(buffer) - 1);
+        if (n <= 0) {
+            perror("Read error");
+            break;
+        }
+        
+        buffer[n] = '\0';
+        printf("Echo from server: %s\n", buffer);
+        printf("Please Enter String:");
+    }
+    
+    close(socket_fd);
+}
+
+int main(int argc, char *argv[]) {
+    if (argc != 3) {
+        printf("Check Number of Input Arguments");
+        exit(EXIT_FAILURE);
+    }
+
+    const char *ip_address = argv[1];
+    int port = atoi(argv[2]);
+    int socket_fd;
+    ssize_t n;
+    struct sockaddr_in server_address;
+
+    socket_fd = socket(AF_INET, SOCK_STREAM, 0);
+    if (socket_fd < 0) {
         perror("Socket creation failed");
         exit(EXIT_FAILURE);
     }
 
-    memset(&servaddr, 0, sizeof(servaddr));
-    servaddr.sin_family = AF_INET;
-    servaddr.sin_port = htons(port);
-    if (inet_pton(AF_INET, ip_addr, &servaddr.sin_addr) <= 0) {
-        perror("Invalid address or address not supported");
-        close(sockfd);
+    memset(&server_address, 0, sizeof(server_address));
+    server_address.sin_family = AF_INET;
+    server_address.sin_port = htons(port);
+    if (inet_pton(AF_INET, ip_address, &server_address.sin_addr) <= 0) {
+        perror("Wrong address");
+        close(socket_fd);
+        exit(EXIT_FAILURE);
+    }
+    n = connect(socket_fd, (struct sockaddr *)&server_address, sizeof(server_address));
+    if (n < 0) {
+        perror("Connect to server failed");
+        close(socket_fd);
         exit(EXIT_FAILURE);
     }
 
-    if (connect(sockfd, (struct sockaddr *)&servaddr, sizeof(servaddr)) < 0) {
-        perror("Connection failed");
-        close(sockfd);
-        exit(EXIT_FAILURE);
-    }
-
-    printf("Connected to server at %s:%d\n", ip_addr, port);
-    printf("Enter String:");
-    while (fgets(buffer, sizeof(buffer), stdin) != NULL) {
-        
-        write(sockfd, buffer, strlen(buffer));
-        n = read(sockfd, buffer, sizeof(buffer) - 1);
-        if (n <= 0) {
-            perror("Read error or server closed connection");
-            break;
-        }
-        buffer[n] = '\0';  // Null-terminate the received data
-        printf("Echo from server: %s", buffer);
-        printf("Enter String:");
-    }
-
-    close(sockfd);
+    printf("Connected to server at %s:%d\n", ip_address, port);
+    // Call the function to perform read and write
+    read_write(socket_fd);
+    close(socket_fd);
     return 0;
 }
