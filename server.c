@@ -17,7 +17,6 @@ ssize_t readline(int connect_fd, char *buffer, size_t maxlength) {
 
     while (read_inp < maxlength - 1) {
         n = recv(connect_fd, &d, 1, 0);
-        //printf("Byte received from client: %zd\n", n);
         if (n < 0) {
             perror("Receive error");
             return -1;
@@ -45,7 +44,6 @@ ssize_t writen(int connect_fd, const char *buffer, ssize_t n) {
         if (bytes_written <= 0) {
             return -1;
         }
-        //printf("Total no of Bytes written: %zd\n", bytes_written);
         write_out += bytes_written;
     }
     return write_out;
@@ -53,12 +51,13 @@ ssize_t writen(int connect_fd, const char *buffer, ssize_t n) {
 
 // Function to handle client read and write communication
 void read_write(int connect_fd) {
-    char buffer[MAX];
+    char buffer[MAX+1];
     ssize_t n;
     // Read a line from the client
     while (1) {
-        n = readline(connect_fd, buffer, sizeof(buffer) - 1);
+        n = readline(connect_fd, buffer, sizeof(buffer) );
     if (n <= 0) {
+            printf("Lost connection with client.\n");
             break;
         }
         buffer[n] = '\0';
@@ -81,17 +80,20 @@ int main(int argc, char *argv[]) {
     socklen_t length = sizeof(client_address);
     pid_t child_id;
 
+    // Create a socket
     socket_fd = socket(AF_INET, SOCK_STREAM, 0);
     if (socket_fd < 0) {
         perror("Socket creation failed");
         exit(EXIT_FAILURE);
     }
-
+    
+    // Set up server address
     memset(&server_address, 0, sizeof(server_address));
     server_address.sin_family = AF_INET;
     server_address.sin_addr.s_addr = htonl(INADDR_ANY);
     server_address.sin_port = htons(port);
-
+    
+    // Bind server address
     if (bind(socket_fd, (struct sockaddr *)&server_address, sizeof(server_address)) < 0) {
         perror("Socket Binding Failed");
         close(socket_fd);
@@ -112,7 +114,8 @@ int main(int argc, char *argv[]) {
             perror("Server accept failed");
             continue;
         }
-
+        
+        // Fork process
         if ((child_id = fork()) == 0) {
             close(socket_fd);
             read_write(connect_fd);
