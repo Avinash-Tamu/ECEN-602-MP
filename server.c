@@ -1,4 +1,3 @@
-// server.c
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -10,79 +9,124 @@
 
 #define MAX 1024
 
-void handle_client(int connfd) {
-    char buffer[MAX];
+// readline- func to read a data from socket
+ssize_t readline(int connect_fd, char *buffer, size_t maxlength) {
+    ssize_t read_inp = 0;
+    char d;
     ssize_t n;
 
-    while ((n = read(connfd, buffer, sizeof(buffer) - 1)) > 0) {
-        buffer[n] = '\0';  // Null-terminate the received data
-        printf("Received from client: %s", buffer);
-        write(connfd, buffer, n);  // Echo back to client
+    while (read_inp < maxlength - 1) {
+        n = recv(connect_fd, &d, 1, 0);
+        //printf("Byte received from client: %zd\n", n);
+        if (n < 0) {
+            perror("Receive error");
+            return -1;
+        }
+        else if (n == 0) {
+            break;
+        }
+        buffer[read_inp] = d;
+        read_inp++;
+        if (d == '\n') {
+            break;
+        }
+    }
+    buffer[read_inp] = '\0';
+    return read_inp;
+}
+
+// writen - func to write n bytes data to socket
+ssize_t writen(int connect_fd, const char *buffer, ssize_t n) {
+    ssize_t write_out = 0;
+    ssize_t bytes_written;
+
+    while (write_out < n) {
+        bytes_written = send(connect_fd, buffer + write_out, n - write_out, 0);
+        if (bytes_written <= 0) {
+            return -1;
+        }
+        //printf("Total no of Bytes written: %zd\n", bytes_written);
+        write_out += bytes_written;
+    }
+    return write_out;
+}
+
+// Function to handle client read and write communication
+void read_write(int connect_fd) {
+    char buffer[MAX];
+    ssize_t n;
+    // Read a line from the client
+    while (1) {
+        n = readline(connect_fd, buffer, sizeof(buffer) - 1);
+    
+        buffer[n] = '\0';
+        printf("\nData received from client: %s", buffer);
+        if (writen(connect_fd, buffer, n) <0){
+            perror("write error");
+            break;
+        }
     }
 
-    if (n < 0) {
-        perror("Read error");
-    }
-
-    close(connfd);
+    close(connect_fd);
     exit(0);  // Exit the child process
 }
 
 int main(int argc, char *argv[]) {
     if (argc != 2) {
-        fprintf(stderr, "Usage: %s <Port>\n", argv[0]);
+        printf("Check Number of Input Arguments");
         exit(EXIT_FAILURE);
     }
 
     int port = atoi(argv[1]);
-    int sockfd, connfd;
-    struct sockaddr_in servaddr, cliaddr;
-    socklen_t len = sizeof(cliaddr);
-    pid_t pid;
+    int socket_fd, connect_fd;
+    struct sockaddr_in server_address, client_address;
+    socklen_t length = sizeof(client_address);
+    pid_t child_id;
 
-    sockfd = socket(AF_INET, SOCK_STREAM, 0);
-    if (sockfd < 0) {
+    socket_fd = socket(AF_INET, SOCK_STREAM, 0);
+    if (socket_fd < 0) {
         perror("Socket creation failed");
         exit(EXIT_FAILURE);
     }
 
-    memset(&servaddr, 0, sizeof(servaddr));
-    servaddr.sin_family = AF_INET;
-    servaddr.sin_addr.s_addr = htonl(INADDR_ANY);
-    servaddr.sin_port = htons(port);
+    memset(&server_address, 0, sizeof(server_address));
+    server_address.sin_family = AF_INET;
+    server_address.sin_addr.s_addr = htonl(INADDR_ANY);
+    server_address.sin_port = htons(port);
 
-    if (bind(sockfd, (struct sockaddr *)&servaddr, sizeof(servaddr)) < 0) {
-        perror("Bind failed");
-        close(sockfd);
+    if (bind(socket_fd, (struct sockaddr *)&server_address, sizeof(server_address)) < 0) {
+        perror("Socket Binding Failed");
+        close(socket_fd);
         exit(EXIT_FAILURE);
     }
 
-    if (listen(sockfd, 5) < 0) {
-        perror("Listen failed");
-        close(sockfd);
+    if (listen(socket_fd, 5) < 0) {
+        perror("Socket Listen failed");
+        close(socket_fd);
         exit(EXIT_FAILURE);
     }
 
-    printf("Server listening on port %d...\n", port);
+    printf("Server listening on port %d..\n", port);
 
     while (1) {
-        connfd = accept(sockfd, (struct sockaddr *)&cliaddr, &len);
-        if (connfd < 0) {
+        connect_fd = accept(socket_fd, (struct sockaddr *)&client_address, &length);
+        if (connect_fd < 0) {
             perror("Server accept failed");
             continue;
         }
 
-        if ((pid = fork()) == 0) {  // Create a child process to handle the client
-            close(sockfd);
-            handle_client(connfd);
-        } else if (pid > 0) {
-            close(connfd);
-            waitpid(-1, NULL, WNOHANG);  // Clean up finished child processes
+        if ((child_id = fork()) == 0) {
+            close(socket_fd);
+            read_write(connect_fd);
+            
+        } else if (child_id > 0) {
+            close(connect_fd);
+            waitpid(-1, NULL, WNOHANG);  // wait all  child processes to finish
         } else {
-            perror("Fork failed");
+            perror("Fork error");
         }
     }
 
-    close(sockfd);
+    close(socket_fd);
     return 0;
 }
