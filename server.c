@@ -58,7 +58,9 @@ void read_write(int connect_fd) {
     // Read a line from the client
     while (1) {
         n = readline(connect_fd, buffer, sizeof(buffer) - 1);
-    
+    if (n <= 0) {
+            break;
+        }
         buffer[n] = '\0';
         printf("\nData received from client: %s", buffer);
         if (writen(connect_fd, buffer, n) <0){
