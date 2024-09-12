@@ -72,10 +72,6 @@ void read_write(int connect_fd) {
 }
 
 int main(int argc, char *argv[]) {
-    if (argc != 2) {
-        printf("Check Number of Input Arguments");
-        exit(EXIT_FAILURE);
-    }
 
     int port = atoi(argv[1]);
     int socket_fd, connect_fd;
