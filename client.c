@@ -14,7 +14,7 @@ ssize_t readline(int socket_fd, char *buffer, size_t maxlength) {
 
     while (read_inp < maxlength - 1) {
         n = recv(socket_fd, &c, 1, 0);
-        printf("Byte received from server: %zd\n", n);
+        //printf("Byte received from server: %zd\n", n);
         if (n <= 0) {
             perror("connection closed here");
             return -1;
@@ -49,17 +49,18 @@ ssize_t writen(int socket_fd, const char *buffer, ssize_t n) {
 
 // Function to handle read and write operation with server
 void read_write(int socket_fd) {
-    char buffer[MAX];
+    char buffer[MAX+1];
     ssize_t n;
 
-    printf("Please Enter String:");
+    printf("Please Enter String (or press Ctrl+D to quit):");
+    
     while (fgets(buffer, sizeof(buffer), stdin) != NULL) {
         if (writen(socket_fd, buffer, strlen(buffer)) < 0) {
             perror("Write error");
             break;
         }
         
-        n = readline(socket_fd, buffer, sizeof(buffer) - 1);
+        n = readline(socket_fd, buffer, sizeof(buffer) );
         if (n <= 0) {
             perror("Read error");
             break;
@@ -67,8 +68,10 @@ void read_write(int socket_fd) {
         
         buffer[n] = '\0';
         printf("Echo from server: %s\n", buffer);
-        printf("Please Enter String:");
+        printf("Please Enter String (or press Ctrl+D to quit): ");
+        
     }
+    printf("\nSocket closing now.\n");  // Detected EOF
     
     close(socket_fd);
 }
@@ -80,21 +83,27 @@ int main(int argc, char *argv[]) {
     int socket_fd;
     ssize_t n;
     struct sockaddr_in server_address;
-
+    
+    // Create a socket
     socket_fd = socket(AF_INET, SOCK_STREAM, 0);
     if (socket_fd < 0) {
         perror("Socket creation failed");
         exit(EXIT_FAILURE);
     }
-
+    
+    // Set up server address
     memset(&server_address, 0, sizeof(server_address));
     server_address.sin_family = AF_INET;
     server_address.sin_port = htons(port);
+    
+    // Check address
     if (inet_pton(AF_INET, ip_address, &server_address.sin_addr) <= 0) {
         perror("Wrong address");
         close(socket_fd);
         exit(EXIT_FAILURE);
     }
+    
+    // Build connection with server
     n = connect(socket_fd, (struct sockaddr *)&server_address, sizeof(server_address));
     if (n < 0) {
         perror("Connect to server failed");
